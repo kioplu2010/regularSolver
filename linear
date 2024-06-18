@@ -1,0 +1,30 @@
+import numpy
+import scipy
+import xlrd
+import xlwt
+from xlutils.copy import copy
+import os
+
+
+
+class qpslover(object):
+
+     #此处考虑后续将常用历史数据存入数据库
+    def __init__(self):
+        self.coding = 'gbk'
+        self.srcPath = "%s/data/数据样例.xlsx"
+        self.indexSheetName = u'市场主要指数'
+         self.fundSheetName = u'基金表现'
+
+
+    def readSrcdata(self):
+        wb = xlrd.open_workbook(self.srcPath)
+        index = wb.sheet_by_name(self.indexSheetName)
+        fund = wb.sheet_by_name(self.fundSheetName)
+
+
+
+
+
+
+
