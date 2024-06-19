@@ -6,18 +6,11 @@ import tushare as ts
 import scipy.optimize as sco
 import scipy.interpolate as sci
 from scipy import stats
-import DataProcess as dp
+from . import DataProcess as dp
+from . import SAAconfig as config
 from enum import Enum
 from typing import Final, Dict, Tuple, List
 from dataclasses import dataclass
-import SAAconfig as config
-
-# TODO 定义计算市场基准所采用历史数据的时间区间，后续应对各类市场基准设置单独的时间区间，此处先简化处理
-START_DATE = '2014-06-30'
-END_DATE = '2024-05-31'
-TIME_INTERVAL = ('2014-06-30', '2024-05-31')
-
-# TODO 定义资产配置所需要的固定参数，后续应移入配置文件，将所有固定参数全部写到单独文件
 
 
 class MarketDataPara:
@@ -25,7 +18,7 @@ class MarketDataPara:
     定义计算市场指数所需要的参数
     """
     def __init__(self, name: str, security_id: str, data_src: config.DataOriginalSrc = config.DataOriginalSrc.WIND,
-                 weight: str = 1, start_date: str = START_DATE, end_date: str = END_DATE):
+                 weight: str = 1, start_date: str = config.HistoryDate.START_DATE, end_date: str = config.HistoryDate.END_DATE):
         self.name = name
         self.security_id = security_id
         self.data_src = data_src
@@ -53,29 +46,35 @@ class BenchmarkSetting:
     # TODO 后续应将所有配置参数改由配置文件存放
     """
     # 货币基金的市场基准，采用单一基准，权重为100%
-    money_fund_index = MarketDataPara(dp.MONEY_FOND_COLUMN, dp.MONEY_FOND_SECURITY_ID, dp.DataOriginalSrc.WIND, 1,
-                                      START_DATE, END_DATE)
+    money_fund_index = MarketDataPara(config.ExcelFileSetting.MONEY_FOND_COLUMN,
+                                      config.ExcelFileSetting.MONEY_FOND_SECURITY_ID, config.DataOriginalSrc.WIND, 1,
+                                      config.HistoryDate.START_DATE, config.HistoryDate.END_DATE)
     money_fund_bench_para = BenchmarkPara('money_fund', [money_fund_index])
 
     # 10年期国债的市场基准
-    gov_bond_index = MarketDataPara(dp.GOV_BOND_COLUMN, dp.GOV_BOND_SECURITY_ID, dp.DataOriginalSrc.WIND, 1,
-                                    START_DATE, END_DATE)
+    gov_bond_index = MarketDataPara(config.ExcelFileSetting.GOV_BOND_COLUMN,
+                                    config.ExcelFileSetting.GOV_BOND_SECURITY_ID, config.DataOriginalSrc.WIND, 1,
+                                    config.HistoryDate.START_DATE, config.HistoryDate.END_DATE)
     gov_bond_bench_para = BenchmarkPara('10_year_gov_bond', [gov_bond_index])
 
     # 信用债券的市场基准
-    credit_bond_index = MarketDataPara(dp.CHINA_CREDIT_COLUMN, dp.CHINA_CREDIT_SECURITY_ID, dp.DataOriginalSrc.WIND, 1,
-                                       START_DATE, END_DATE)
+    credit_bond_index = MarketDataPara(config.ExcelFileSetting.CHINA_CREDIT_COLUMN,
+                                       config.ExcelFileSetting.CHINA_CREDIT_SECURITY_ID, config.DataOriginalSrc.WIND, 1,
+                                       config.HistoryDate.START_DATE, config.HistoryDate.END_DATE)
     credit_bond_bench_para = BenchmarkPara('High_level_credit', [credit_bond_index])
 
     # 境内权益的市场基准
-    China_equity_index = MarketDataPara(dp.CHINA_EQUITY_COLUMN, dp.CHINA_EQUITY_SECURITY_ID, dp.DataOriginalSrc.WIND, 1,
-                                        START_DATE, END_DATE)
+    China_equity_index = MarketDataPara(config.ExcelFileSetting.CHINA_EQUITY_COLUMN,
+                                        config.ExcelFileSetting.CHINA_EQUITY_SECURITY_ID, config.DataOriginalSrc.WIND, 1,
+                                        config.HistoryDate.START_DATE, config.HistoryDate.END_DATE)
     China_equity_bench = BenchmarkPara('CSI300', [China_equity_index])
 
     # 香港权益的市场基准
-    HK_equity_index = MarketDataPara(dp.HK_EQUITY_COLUMN, dp.HK_EQUITY_SECURITY_ID, dp.DataOriginalSrc.WIND, 1,
-                                     START_DATE, END_DATE)
+    HK_equity_index = MarketDataPara(config.ExcelFileSetting.HK_EQUITY_COLUMN,
+                                     config.ExcelFileSetting.HK_EQUITY_SECURITY_ID, config.DataOriginalSrc.WIND, 1,
+                                     config.HistoryDate.START_DATE, config.HistoryDate. END_DATE)
     HK_equity_bench = BenchmarkPara('HSIRH', [HK_equity_index])
+
 
 @dataclass
 class AssetSetting:
