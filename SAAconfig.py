@@ -10,6 +10,33 @@ from typing import Final, Dict, Tuple, List
 """
 
 
+class TimeSeriesType(Enum):
+    """
+    定义资产历史数据类型的枚举值
+    """
+    YIELD = 'yield'
+    PRICE = 'price'
+    PRICE_CHANGE = 'price_change'
+
+
+class DataOriginalSrc(Enum):
+    """
+    定义投资数据的初始来源，例如：wind,bloomberg,other
+    """
+    WIND: str = 'wind'
+    BLOOMBERG: str = 'bloomberg'
+    OTHER: str = 'other'
+
+
+class AnnualizedMultiplier(Enum):
+    """
+    定义投资数据的年化乘数
+    """
+    MONTHS: int = 12
+    YEAR: int = 1
+    TRADE_DAYS: int = 250
+
+
 @dataclass
 class ExcelFileSetting:
     """
@@ -29,6 +56,7 @@ class ExcelFileSetting:
     # 国债采用中证10年期中国国债收益率
     GOV_BOND_COLUMN = "China_gov_bond_yield"
     GOV_BOND_SECURITY_ID = ''
+    GOV_BOND_DATA_MULTIPLIER = 0.01
     # 货币基金采用wind货币基金指数
     MONEY_FOND_COLUMN = "money_fund"
     MONEY_FOND_SECURITY_ID = 'H11025.CSI'
@@ -60,21 +88,12 @@ class HistoryDate:
     TIME_INTERVAL = ('2014-06-30', '2024-05-31')
 
 
-class DataOriginalSrc(Enum):
-    """
-    定义投资数据的初始来源，例如：wind,bloomberg,other
-    """
-    WIND = 'wind'
-    BLOOMBERG = 'bloomberg'
-    OTHER = 'other'
-
-
 class MarketDataPara:
     """
     定义计算市场指数所需要的参数
     """
     def __init__(self, name: str, security_id: str, data_src: DataOriginalSrc = DataOriginalSrc.WIND,
-                 weight: str = 1, start_date: str = HistoryDate.START_DATE, end_date: str = HistoryDate.END_DATE):
+                 weight: float = 1, start_date: str = HistoryDate.START_DATE, end_date: str = HistoryDate.END_DATE):
         self.name = name
         self.security_id = security_id
         self.data_src = data_src
@@ -87,12 +106,14 @@ class BenchmarkPara:
     """
     定义计算市场基准所需要的参数，考虑混合基准，需检查合计权重是否为100%
     """
-    def __init__(self, name: str, market_data: List[MarketDataPara]):
+    def __init__(self, name: str, market_data: List[MarketDataPara],
+                 data_type: TimeSeriesType = TimeSeriesType.PRICE_CHANGE):
         self.name = name
         # 检查市场指数的权重是否加总为100%
         if sum(x.weight for x in market_data) != 1:
             raise ValueError("传递了无效的参数值:market_data, 构建市场基准的指数权重相加应该等于100%")
         self.market_data = market_data
+        self.market_data_type = data_type
 
 
 @dataclass
@@ -105,31 +126,39 @@ class BenchmarkSetting:
     money_fund_index = MarketDataPara(ExcelFileSetting.MONEY_FOND_COLUMN,
                                       ExcelFileSetting.MONEY_FOND_SECURITY_ID, DataOriginalSrc.WIND, 1,
                                       HistoryDate.START_DATE, HistoryDate.END_DATE)
-    money_fund_bench_para = BenchmarkPara('money_fund', [money_fund_index])
+    money_fund_bench_para = BenchmarkPara('money_fund', [money_fund_index], TimeSeriesType.PRICE_CHANGE)
 
-    # 10年期国债的市场基准
+    # 30年期国债的市场基准
     gov_bond_index = MarketDataPara(ExcelFileSetting.GOV_BOND_COLUMN,
                                     ExcelFileSetting.GOV_BOND_SECURITY_ID, DataOriginalSrc.WIND, 1,
                                     HistoryDate.START_DATE, HistoryDate.END_DATE)
-    gov_bond_bench_para = BenchmarkPara('10_year_gov_bond', [gov_bond_index])
+    gov_bond_bench_para = BenchmarkPara('30_year_gov_bond', [gov_bond_index], TimeSeriesType.YIELD)
 
     # 信用债券的市场基准
     credit_bond_index = MarketDataPara(ExcelFileSetting.CHINA_CREDIT_COLUMN,
                                        ExcelFileSetting.CHINA_CREDIT_SECURITY_ID, DataOriginalSrc.WIND, 1,
                                        HistoryDate.START_DATE, HistoryDate.END_DATE)
-    credit_bond_bench_para = BenchmarkPara('High_level_credit', [credit_bond_index])
+    credit_bond_bench_para = BenchmarkPara('High_level_credit', [credit_bond_index], TimeSeriesType.PRICE_CHANGE)
 
     # 境内权益的市场基准
     China_equity_index = MarketDataPara(ExcelFileSetting.CHINA_EQUITY_COLUMN,
                                         ExcelFileSetting.CHINA_EQUITY_SECURITY_ID, DataOriginalSrc.WIND, 1,
                                         HistoryDate.START_DATE, HistoryDate.END_DATE)
-    China_equity_bench = BenchmarkPara('CSI300', [China_equity_index])
+    China_equity_bench_para = BenchmarkPara('CSI300', [China_equity_index], TimeSeriesType.PRICE_CHANGE)
 
     # 香港权益的市场基准
     HK_equity_index = MarketDataPara(ExcelFileSetting.HK_EQUITY_COLUMN,
                                      ExcelFileSetting.HK_EQUITY_SECURITY_ID, DataOriginalSrc.WIND, 1,
                                      HistoryDate.START_DATE, HistoryDate. END_DATE)
-    HK_equity_bench = BenchmarkPara('HSIRH', [HK_equity_index])
+    HK_equity_bench_para = BenchmarkPara('HSIRH', [HK_equity_index], TimeSeriesType.PRICE_CHANGE)
+
+    # 汇总市场基准设定
+    bench_paras = {money_fund_bench_para.name: money_fund_bench_para,
+                   gov_bond_bench_para.name: gov_bond_bench_para,
+                   credit_bond_bench_para.name: credit_bond_bench_para,
+                   China_equity_bench_para.name: China_equity_bench_para,
+                   HK_equity_bench_para.name: HK_equity_bench_para
+                   }
 
 
 @dataclass
@@ -138,12 +167,20 @@ class AssetSetting:
     初始化大类资产的配置参数，主要是需要将资产名称和市场基准名称关联起来
     # TODO 后续存入配置文件或数据库
     """
-    # 先用4类资产做个测试
+    # 先用4类资产做测试
     ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity']
-    ASSET_BENCHMARKS = {'cash': 'money_fund', 'gov_Bond': '10_year_gov_bond', 'credit_bond': 'High_level_credit',
+    ASSET_BENCHMARKS = {'cash': 'money_fund', 'gov_bond': '30_year_gov_bond', 'credit_bond': 'High_level_credit',
                         'China_equity': 'CSI300', 'HK_equity': 'HSIRH'}
+
+@dataclass
+class PortfolioSetting:
+    """
+    初始化投资组合的配置参数
+    """
+    PORTFOLIO_NAME = '4_assets_portfolio'
 
 
 if __name__ == '__main__':
 
-    pass
+    weights = [1/5 for x in range(5)]
+    print(weights)

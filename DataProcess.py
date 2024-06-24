@@ -46,7 +46,7 @@ def data_clean(df: pd.DataFrame):
     # 更新列名为包含DATE_INDEX的行
     df_cleaned.columns = header
 
-    # 为便于使用，统一调整为正序
+    # 为便于使用，统一调整为按日期正序排列
     df_sorted = df_cleaned.sort_index(ascending=True)
 
     return df_sorted
