@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Final, Dict, Tuple, List
+import numpy as np
+import pandas as pd
 
 """
 本文件主要用来存放资产配置所需要的参数
@@ -44,6 +46,24 @@ class ExcelFileSetting:
     """
     # 源数据存放地址
     SOURCE_PATH = "%s/data/SAAData.xlsx" % (os.getcwd())
+
+    # 结果存放地址
+    OUTPUT_PATH = "%s/result/efficient_frontier.xlsx" % (os.getcwd())
+
+    """
+    存放数据使用的标签名称，用作表名或列名
+    """
+    LABEL_ASSETS_NAME = "assets_name"
+    LABEL_EXPECTED_RETURN = "expected_return"
+    LABEL_EXPECTED_VOLATILITY = "expected_volatility"
+    LABEL_SKEWNESS = "skewness"
+    LABEL_EXCESS_KURTOSIS = "excess_kurtosis"
+    LABEL_BENCHMARK_NAME = "benchmark_name"
+    LABEL_ASSETS_PARAS = "assets_paras"
+    LABEL_CORRELATIONS = "correlations"
+    LABEL_EFFICIENT_FRONTIER = "efficient_frontier"
+    LABEL_PORTFOLIO_NAME = "portfolio_name"
+    LABEL_SHARP_RATIO = "sharp_ratio"
 
     # 各类数据存放的sheet名
     DATA_LIST = ["HistoryYield", "HistoryIndex"]
@@ -160,6 +180,9 @@ class BenchmarkSetting:
                    HK_equity_bench_para.name: HK_equity_bench_para
                    }
 
+    # 市场无风险利率设定为2.3%
+    RISK_FREE_RATE = 0.023
+
 
 @dataclass
 class AssetSetting:
@@ -172,6 +195,11 @@ class AssetSetting:
     ASSET_BENCHMARKS = {'cash': 'money_fund', 'gov_bond': '30_year_gov_bond', 'credit_bond': 'High_level_credit',
                         'China_equity': 'CSI300', 'HK_equity': 'HSIRH'}
 
+    # 假设权益资产配置不超过30%
+    # TODO 后续各类资产的权重限制条件可存入配置文件或数据库
+    INEQ_CONS = [{'type': 'ineq', 'fun': lambda weights: 0.3 - weights[3]}]
+
+
 @dataclass
 class PortfolioSetting:
     """
@@ -182,5 +210,15 @@ class PortfolioSetting:
 
 if __name__ == '__main__':
 
-    weights = [1/5 for x in range(5)]
-    print(weights)
+    # weights = [1/5 for x in range(5)]
+    # print(weights)
+
+    # series1 = pd.Series(data={"one": 1, "two": 2}, index=["one", "two"])
+    # series2 = pd.Series(data={"one": 3, "two": 4}, index=["one", "two"])
+
+    series1 = pd.Series(data={"one": 1, "two": 2}, name="A")
+    print(series1)
+    series2 = pd.Series(data={"one": 3, "two": 4}, name="B")
+    print(series1.index)
+    df = pd.DataFrame({"A": series1, "B": series2})
+    print(df)

@@ -2,15 +2,13 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import tushare as ts
 import scipy.optimize as sco
 import scipy.interpolate as sci
 from scipy import stats
 from regularSolver import DataProcess as dp
 from regularSolver import SAAconfig as config
-from enum import Enum
+from regularSolver import SaveResult as save
 from typing import Final, Dict, Tuple, List
-from dataclasses import dataclass
 
 
 class Benchmark:
@@ -47,17 +45,18 @@ class Benchmark:
     # 计算时间序列的统计指标
     # 基本假设：利率曲线类指标均为年化收益率，价格类指标为每月收盘价较上月的涨跌幅
     @staticmethod
-    def stats_benchmark(timeseries: pd.Series, type: config.TimeSeriesType = config.TimeSeriesType.PRICE_CHANGE):
+    def stats_benchmark(timeseries: pd.Series,
+                        type: config.TimeSeriesType = config.TimeSeriesType.PRICE_CHANGE) -> (float, float, float, float):
         """
         计算时间序列的统计指标
         :param timeseries:
         :param type:价格、利率或者价格变动
         :return:annul_return, annul_volatility, skewness, excess_kurtosis 数据均为float
         """
-        # annul_return = 0.0
-        # annul_volatility = 0.0
-        # skewness = 0.0
-        # excess_kurtosis = 0.0
+        annul_return = 0.0
+        annul_volatility = 0.0
+        skewness = 0.0
+        excess_kurtosis = 0.0
         if type == config.TimeSeriesType.YIELD:
             # 如果时间序列为利率数据，一般都是直接传入的年化利率
             annul_return = timeseries.mean()
@@ -66,14 +65,14 @@ class Benchmark:
             excess_kurtosis = stats.kurtosis(timeseries.astype(float))
         elif type == config.TimeSeriesType.PRICE_CHANGE:
             # 如果时间序列为价格变动，默认为月度价格变动，收益率与波动率需进行年化
-            annul_return = (1 + timeseries.mean()) ^ config.AnnualizedMultiplier.MONTHS - 1
-            annul_volatility = timeseries.std() * np.sqrt(config.AnnualizedMultiplier.MONTHS)
+            annul_return = (1 + timeseries.mean()) ** float(config.AnnualizedMultiplier.MONTHS.value) - 1
+            annul_volatility = timeseries.std() * np.sqrt(float(config.AnnualizedMultiplier.MONTHS.value))
             skewness = stats.skew(timeseries.astype(float))
             excess_kurtosis = stats.kurtosis(timeseries.astype(float))
         elif type == config.TimeSeriesType.PRICE:
             # 如果时间序列为价格，则需要先处理为价格涨跌幅数据
-            annul_return = (1 + timeseries.pct_change().mean()) ^ config.AnnualizedMultiplier.MONTHS - 1
-            annul_volatility = timeseries.pct_change().std() * np.sqrt(config.AnnualizedMultiplier.MONTHS)
+            annul_return = (1 + timeseries.pct_change().mean()) ** float(config.AnnualizedMultiplier.MONTHS.value) - 1
+            annul_volatility = timeseries.pct_change().std() * np.sqrt(float(config.AnnualizedMultiplier.MONTHS.value))
             skewness = stats.skew(timeseries.pct_change().astype(float))
             excess_kurtosis = stats.kurtosis(timeseries.pct_change().astype(float))
         else:
@@ -105,35 +104,129 @@ class Portfolio:
         self.weights = weights
         self.correlations = correlations
 
+    # 返回资产种类
+    def get_assets_types(self):
+        return len(self.assets)
+
     # 返回资产名称列表
-    def asset_names(self):
+    def get_asset_names(self):
         asset_names = []
         for asset in self.assets:
             asset_names.append(asset.name)
         return asset_names
 
     # 返回资产预期收益的一维数组
-    def returns_array(self):
+    def get_returns_array(self):
         expected_returns = []
         for x in self.assets:
             expected_returns.append(x.expected_return)
         return np.array(expected_returns)
 
+    # 返回资产预期波动率的一维数组
+    def get_vols_array(self):
+        expected_vols = []
+        for x in self.assets:
+            expected_vols.append(x.expected_volatility)
+        return np.array(expected_vols)
+
     # 返回资产权重的一维数组
-    def weights_array(self):
+    def get_weights_array(self):
         return np.array(self.weights)
 
     # 返回投资组合的预期收益率
-    def portfolio_return(self):
-        expected_return = self.returns_array().dot(self.weights)
+    def get_portfolio_return(self):
+        expected_return = self.get_returns_array().dot(self.weights)
         return expected_return
 
     # 返回投资组合的预期波动率
-    def portfolio_volatility(self):
-        weights_vols = np.dot(self.weights_array(), self.returns_array())
-        variance = sum(weights_vols * np.transpose(weights_vols) * self.correlations)
+    def get_portfolio_volatility(self):
+        weights_vols = np.dot(np.transpose(self.get_weights_array()), self.get_vols_array())
+        variance = np.sum((weights_vols * np.transpose(weights_vols) * self.correlations).values)
         volatility = variance ** 0.5
         return volatility
+
+    # 返回投资组合的夏普比率
+    def get_portfolio_sharpe(self):
+        sharp_ratio = (self.get_portfolio_return() - config.BenchmarkSetting.RISK_FREE_RATE) / self.get_portfolio_volatility()
+        return sharp_ratio
+
+
+class Markowitz:
+    """
+    计算马科维兹有效前沿，通过scipy的Optimization模块计算，后续增加用cvxpy计算以获取更加精确的解
+    """
+    # 优化求解目标函数，给定目标收益率的情况下求最小波动率
+    @staticmethod
+    def min_volatility(weights: List[float], portfolio: Portfolio) -> float:
+        portfolio.weights = weights
+        return portfolio.get_portfolio_volatility()
+
+    # 各类资产权重的边界，都大于0小于1
+    @staticmethod
+    def get_bounds(assets_types: int) -> list:
+        return [(0, 1)] * assets_types
+
+    @staticmethod
+    def get_efficient_frontier(optimize_func: callable, origin_portfolio: Portfolio,
+                               constraints: List, nportfolios: int = 100) -> List[Portfolio]:
+        """
+        计算有效前沿
+        :param origin_portfolio: 初始化的投资组合，资产权重为等权，其他参数已计算完成
+        :param constraints:各类资产权重的约束条件
+        :param nportfolios:默认计算100个点
+        :param optimize_func:默认优化目标为求最小波动率，
+        :return:
+        """
+        # 各类资产中预期回报最小的资产
+        min_return = np.min(origin_portfolio.get_returns_array())
+
+        # 各类资产中预期回报最大的资产
+        max_return = np.max(origin_portfolio.get_returns_array())
+
+        # 获取资产种类
+        ntypes = origin_portfolio.get_assets_types()
+
+        # 获取各类资产的收益率
+        expected_returns = origin_portfolio.get_returns_array()
+
+        # 初始化资产权重，等权简化处理
+        initial_weights = np.array([1 / ntypes for x in range(ntypes)])
+
+        # 生成组合目标收益率序列
+        target_returns = np.linspace(min_return, max_return, nportfolios)
+
+        # 初始化投资组合列表
+        target_ports = []
+
+        # 默认约束为各类资产权重相加应等于1
+        default_cons = [{'type': 'eq', 'fun': lambda weights: np.sum(weights) - 1}]
+
+        # 获取各类资产权重的上下限
+        opt_bounds = Markowitz.get_bounds(ntypes)
+
+        # 计算有效前沿
+        for target_return in target_returns:
+
+            # 增加约束组合收益率等于目标收益率
+            target_return_cons = [{'type': 'eq', 'fun': lambda weights: np.sum(expected_returns * weights)
+                                   - target_return}]
+
+            # 汇总各类资产权重的设置
+            opt_cons = default_cons + target_return_cons + constraints
+
+            # 调用优化函数计算结果
+            result = sco.minimize(fun=optimize_func, x0=initial_weights, args=(origin_portfolio,),
+                                  method='SLSQP', bounds=opt_bounds, constraints=opt_cons)
+
+            # 如果求解成功，将结果加入投资组合列表
+            if result.success:
+                # 各投资组合的命名方式为：初始投资组合名称 + 预期收益率
+                result_name = origin_portfolio.name + str(" {:.2%}").format(target_return)
+                result_weights = result.x.tolist()
+                target_ports.append(Portfolio(result_name, origin_portfolio.assets, result_weights,
+                                              origin_portfolio.correlations))
+
+        return target_ports
 
 
 if __name__ == '__main__':
@@ -155,7 +248,8 @@ if __name__ == '__main__':
     df_yield = dfs_prepared[config.ExcelFileSetting.DATA_LIST[0]]
 
     # 获取历史国债到期收益率数据，源数据来自Wind，因此除以100计算收益率数据
-    gov_bond_yield_series = df_yield[config.ExcelFileSetting.GOV_BOND_COLUMN] * config.ExcelFileSetting.GOV_BOND_DATA_MULTIPLIER
+    gov_bond_yield_series = (df_yield[config.ExcelFileSetting.GOV_BOND_COLUMN] *
+                             config.ExcelFileSetting.GOV_BOND_DATA_MULTIPLIER)
     gov_bond_history_yields = gov_bond_yield_series[start_date:end_date]
 
     # 获取历史指数价格数据，转换为价格涨跌幅便于后续使用
@@ -185,7 +279,7 @@ if __name__ == '__main__':
                                 hk_equity_history_returns.name: hk_equity_history_returns})
 
     """
-    以下模块的作用是计算市场基准的参数，并以此为基础建立各大类资产
+    以下模块的作用是计算市场基准的参数，并以此为基础建立各大类资产的模型
     """
     # 建立空的市场基准数据集以备逐一加入市场基准，用于后续的相关系数矩阵计算
     bench_df = pd.DataFrame()
@@ -221,6 +315,7 @@ if __name__ == '__main__':
 
         # TODO 建立资产大类，暂时先用市场基准的年化收益率、波动率作为预期收益率和波动率
         # TODO 后续优化时再对各类资产的预期收益率与预期波动率做调整，可考虑针对每一种大类资产类型单独建模
+        # TODO 后续可考虑在此处引入Black-Littleman模型调整资产的预期收益率和波动率
         asset = Asset(asset_name, benchmark.annul_return, benchmark.annul_volatility, benchmark)
 
         # 将大类资产加入列表
@@ -236,10 +331,28 @@ if __name__ == '__main__':
     asset_types = len(config.AssetSetting.ASSETS_NAME)
 
     # 初始化资产权重，等权简化处理
-    asset_weights = [1 / asset_types for x in range(asset_types)]
+    origin_weights = [1 / asset_types for x in range(asset_types)]
 
     # 建立初始投资组合
-    portfolio = Portfolio(config.PortfolioSetting.PORTFOLIO_NAME, asset_list, asset_weights, corr_matrix)
+    origin_portfolio = Portfolio(config.PortfolioSetting.PORTFOLIO_NAME, asset_list, origin_weights, corr_matrix)
+
+    """
+    以下模块的作用是计算马科维兹有效前沿
+    """
+    portfolios = Markowitz.get_efficient_frontier(Markowitz.min_volatility, origin_portfolio,
+                                                  config.AssetSetting.INEQ_CONS)
+
+    """
+    以下模块的作用是保存计算结果
+    """
+    save.SaveFrontier.save_all_to_excel(portfolios)
+
+    print("Well Done!")
+
+    
+
+
+
 
 
 
