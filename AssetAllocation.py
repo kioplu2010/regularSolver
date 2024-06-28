@@ -204,6 +204,9 @@ class Markowitz:
         # 获取各类资产权重的上下限
         opt_bounds = Markowitz.get_bounds(ntypes)
 
+        # 保存优化求解失败次数
+        failures = 0
+
         # 计算有效前沿
         for target_return in target_returns:
 
@@ -225,6 +228,10 @@ class Markowitz:
                 result_weights = result.x.tolist()
                 target_ports.append(Portfolio(result_name, origin_portfolio.assets, result_weights,
                                               origin_portfolio.correlations))
+            else:
+                failures += 1
+
+        print("optimize failures: %s" % failures)
 
         return target_ports
 

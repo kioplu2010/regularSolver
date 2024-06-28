@@ -53,9 +53,6 @@ class SaveFrontier:
         portfolio_names = [portfolio.name for portfolio in portfolios]
 
         # 获取各投资组合的资产权重、组合预期收益率、组合预期波动率、组合夏普比率
-        print(portfolios[0].weights)
-        print([portfolios[0].get_portfolio_return(), portfolios[0].get_portfolio_volatility(), portfolios[0].get_portfolio_sharpe()])
-
         portfolio_data = list(map(lambda portfolio: portfolio.weights + [portfolio.get_portfolio_return(),
                                                                          portfolio.get_portfolio_volatility(),
                                                                          portfolio.get_portfolio_sharpe()], portfolios))
