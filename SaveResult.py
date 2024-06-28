@@ -73,7 +73,7 @@ class SaveFrontier:
 
             # 将相关系数矩阵写入excel
             df_correlations.to_excel(writer, sheet_name=config.ExcelFileSetting.LABEL_CORRELATIONS,
-                                    index_label=config.ExcelFileSetting.LABEL_CORRELATIONS)
+                                     index_label=config.ExcelFileSetting.LABEL_CORRELATIONS)
 
             # 将有效前沿写入excel
             df_efficient_frontier.to_excel(writer, sheet_name=config.ExcelFileSetting.LABEL_EFFICIENT_FRONTIER,

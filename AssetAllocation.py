@@ -251,16 +251,35 @@ if __name__ == '__main__':
     start_date = config.HistoryDate.START_DATE
     end_date = config.HistoryDate.END_DATE
 
-    # 获取历史利率曲线数据
-    df_yield = dfs_prepared[config.ExcelFileSetting.DATA_LIST[0]]
-
-    # 获取历史国债到期收益率数据，源数据来自Wind，因此除以100计算收益率数据
-    gov_bond_yield_series = (df_yield[config.ExcelFileSetting.GOV_BOND_COLUMN] *
+    # 获取历史利率曲线数据,源数据来自Wind，因此除以100计算收益率数据
+    df_yield = (dfs_prepared[config.ExcelFileSetting.DATA_LIST[0]] *
                              config.ExcelFileSetting.GOV_BOND_DATA_MULTIPLIER)
-    gov_bond_history_yields = gov_bond_yield_series[start_date:end_date]
+
+    # 获取历史利率曲线的滚动年化数据，由于数据本身是年化收益率，滚动收益率直接12个月平均值
+    # df_yield_rolling = df_yield.rolling(window=config.ExcelFileSetting.MONTHS).apply(lambda x: x.mean())
+    df_yield_rolling = df_yield
 
     # 获取历史指数价格数据，转换为价格涨跌幅便于后续使用
     df_return = dfs_prepared[config.ExcelFileSetting.DATA_LIST[1]].pct_change()
+
+    # 获取历史指数价格涨跌幅的滚动年化数据
+    df_return_rolling = (1 +df_return).rolling(window=config.ExcelFileSetting.MONTHS).apply(lambda x: x.prod()) - 1
+
+    # 合并原始数据,并获取需要的时间区间数据
+    df_data_merge_src = pd.merge(df_yield ,df_return, left_index=True, right_index=True)
+    df_data_merge = df_data_merge_src[start_date:end_date]
+
+
+    # 合并滚动年化数据
+    df_data_rolling_src = pd.merge(df_yield_rolling, df_return_rolling, left_index=True, right_index=True)
+    df_data_merge_rolling = df_data_rolling_src[start_date:end_date]
+
+    """
+    需要对每类市场基准的历史收益率数据作特殊处理时再启动此段
+    # 获取历史国债到期收益率数据，源数据来自Wind，因此除以100计算收益率数据
+    gov_bond_yield_series = (df_yield[config.ExcelFileSetting.GOV_BOND_COLUMN] *
+                             config.ExcelFileSetting.GOV_BOND_DATA_MULTIPLIER.value)
+    gov_bond_history_yields = gov_bond_yield_series[start_date:end_date]
 
     # 获取货币基金历史收益率数据
     money_fund_series = df_return[config.ExcelFileSetting.MONEY_FOND_COLUMN]
@@ -284,12 +303,13 @@ if __name__ == '__main__':
                                 china_equity_history_returns.name: china_equity_history_returns,
                                 china_credit_history_returns.name: china_credit_history_returns,
                                 hk_equity_history_returns.name: hk_equity_history_returns})
+    """
 
     """
     以下模块的作用是计算市场基准的参数，并以此为基础建立各大类资产的模型
     """
     # 建立空的市场基准数据集以备逐一加入市场基准，用于后续的相关系数矩阵计算
-    bench_df = pd.DataFrame()
+    df_bench_rolling = pd.DataFrame()
 
     # 建立空的资产大类列表
     asset_list = []
@@ -305,16 +325,25 @@ if __name__ == '__main__':
 
         # 考虑混合基准的情形，将基准数据乘以权重
         bench_series_list = list(map(lambda market_data_para:
-                                     data_merger[market_data_para.name] * market_data_para.weight,
+                                     df_data_merge[market_data_para.name] * market_data_para.weight,
                                      benchmark_para.market_data))
 
         # 将乘以权重后的市场基准加总获得混合基准
         weighted_bench_series = sum(bench_series_list)
 
+        # 获取滚动年化基准
+        bench_series_list_rolling = list(map(lambda market_data_para:
+                                     df_data_merge_rolling[market_data_para.name] * market_data_para.weight,
+                                     benchmark_para.market_data))
+
+        weighted_bench_rolling = sum(bench_series_list)
+
         # 将混合基准加入市场基准数据集,汇总的前提是所有市场基准有相同的index，即相同的日期index
         # TODO 当前将所有市场基准的时间区间设置为一致，且用日期作为所有时间序列的index，因此可以直接合并
         # TODO 如果计算各类市场基准的年化收益率、波动率的时间区间不一致，则应提前将时间序列的index调整为一致
-        bench_df[benchmark_name] = weighted_bench_series
+        # df_bench[benchmark_name] = weighted_bench_series_rolling
+        df_bench_rolling[benchmark_name] = weighted_bench_rolling
+
 
         # 建立市场基准
         benchmark = Benchmark.benchmark_from_timeseires(benchmark_name, weighted_bench_series, start_date, end_date,
@@ -332,7 +361,8 @@ if __name__ == '__main__':
     以下模块的作用是初始化投资组合
     """
     # 计算相关系数矩阵,默认为计算皮尔逊相关系数（'pearson'）
-    corr_matrix = bench_df.corr()
+    corr_matrix = df_bench_rolling.corr()
+    df_bench_rolling.to_excel(config.ExcelFileSetting.TEST_PATH)
 
     # 计算资产种类
     asset_types = len(config.AssetSetting.ASSETS_NAME)
@@ -355,14 +385,6 @@ if __name__ == '__main__':
     save.SaveFrontier.save_all_to_excel(portfolios)
 
     print("Well Done!")
-
-    
-
-
-
-
-
-
 
 
 

@@ -49,6 +49,7 @@ class ExcelFileSetting:
 
     # 结果存放地址
     OUTPUT_PATH = "%s/result/efficient_frontier.xlsx" % (os.getcwd())
+    TEST_PATH = "%s/result/rolling_return.xlsx" % (os.getcwd())
 
     """
     存放数据使用的标签名称，用作表名或列名
@@ -216,9 +217,20 @@ if __name__ == '__main__':
     # series1 = pd.Series(data={"one": 1, "two": 2}, index=["one", "two"])
     # series2 = pd.Series(data={"one": 3, "two": 4}, index=["one", "two"])
 
-    series1 = pd.Series(data={"one": 1, "two": 2}, name="A")
-    print(series1)
-    series2 = pd.Series(data={"one": 3, "two": 4}, name="B")
-    print(series1.index)
-    df = pd.DataFrame({"A": series1, "B": series2})
-    print(df)
+    data = {
+        'returns_a': [0.01, -0.02, 0.03, 0.01, -0.01, 0.02, -0.03, 0.04, -0.01, 0.02],
+        'returns_b': [0.02, -0.02, 0.03, 0.01, -0.01, 0.02, -0.03, 0.04, -0.01, 0.02]
+    }
+    df = pd.DataFrame(data)
+
+    df_rolling = (1 + df).rolling(window=5).apply(lambda x: x.prod()) - 1
+
+    test = df['returns_a'].tolist()
+
+    sumprod = np.prod([x + 1 for x in test[0:5]]) - 1
+
+    print([x + 1 for x in test[0:5]])
+
+    print(df_rolling)
+
+    print(sumprod)
