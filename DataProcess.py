@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
 from scipy import stats
-import SAAconfig as config
+from . import SAAconfig as config
 
 
 def read_data_from_execl(file_path: str, sheet_list: list, index_column: int = 0):
@@ -46,12 +46,10 @@ def data_clean(df: pd.DataFrame):
     # 更新列名为包含DATE_INDEX的行
     df_cleaned.columns = header
 
-    # 为便于使用，统一调整为正序
+    # 为便于使用，统一调整为按日期正序排列
     df_sorted = df_cleaned.sort_index(ascending=True)
 
     return df_sorted
-
-# 准备源数据,主要是对数据作清洗便于后续使用
 
 
 def data_prepare(src_dfs: dict):
