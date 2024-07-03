@@ -49,7 +49,6 @@ class ExcelFileSetting:
 
     # 结果存放地址
     OUTPUT_PATH = "%s/result/efficient_frontier.xlsx" % (os.getcwd())
-    TEST_PATH = "%s/result/rolling_return.xlsx" % (os.getcwd())
 
     """
     存放数据使用的标签名称，用作表名或列名
@@ -65,6 +64,7 @@ class ExcelFileSetting:
     LABEL_EFFICIENT_FRONTIER = "efficient_frontier"
     LABEL_PORTFOLIO_NAME = "portfolio_name"
     LABEL_SHARP_RATIO = "sharp_ratio"
+    LABEL_IMAGE = "image"
 
     # 各类数据存放的sheet名
     DATA_LIST = ["HistoryYield", "HistoryIndex"]
@@ -192,12 +192,26 @@ class AssetSetting:
     # TODO 后续存入配置文件或数据库
     """
     # 先用4类资产做测试
-    ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity']
+    ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity', 'HK_equity']
     ASSET_BENCHMARKS = {'cash': 'money_fund', 'gov_bond': '30_year_gov_bond', 'credit_bond': 'High_level_credit',
                         'China_equity': 'CSI300', 'HK_equity': 'HSIRH'}
 
     # 假设权益资产配置不超过30%
     # TODO 后续各类资产的权重限制条件可存入配置文件或数据库
+    # 用于存储各类资产权重的上下限，未设置的默认为（0，1）
+    weights_zone = {'China_equity': (0, 0.3)}
+
+    """
+    以下是官网的示例，摘录备查，其中'jac'代表降梯度函数，即导数
+    ineq_cons = {'type': 'ineq',
+             'fun' : lambda x: np.array([1 - x[0] - 2*x[1],
+                                         1 - x[0]**2 - x[1],
+                                         1 - x[0]**2 + x[1]])
+    eq_cons = {'type': 'eq',
+           'fun' : lambda x: np.array([2*x[0] + x[1] - 1]),
+           'jac' : lambda x: np.array([2.0, 1.0])}
+    """
+    # 将不等约束条件
     INEQ_CONS = [{'type': 'ineq', 'fun': lambda weights: 0.3 - weights[3]}]
 
 
@@ -207,6 +221,21 @@ class PortfolioSetting:
     初始化投资组合的配置参数
     """
     PORTFOLIO_NAME = '4_assets_portfolio'
+    # 建立4类资产的投资组合
+    ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity']
+
+
+
+@dataclass
+class PlotSetting:
+    """
+    记录生成图像的参数设定
+    """
+    # 生成图像的存放地点
+    RESULT_IMAGE_PATH = "%s/result/efficient_frontier.png" % (os.getcwd())
+
+    # 画布大小设定
+    FIGURE_SIZE = (10, 6)
 
 
 if __name__ == '__main__':
@@ -216,7 +245,37 @@ if __name__ == '__main__':
 
     # series1 = pd.Series(data={"one": 1, "two": 2}, index=["one", "two"])
     # series2 = pd.Series(data={"one": 3, "two": 4}, index=["one", "two"])
+    """
+    a1 = np.array([0.1, 0.2, 0.3, 0.4])
+    a2 = np.array([0.5, 0.6, 0.7, 0.8])
+    a3 = np.outer(a1, a2)
+    df1 = pd.DataFrame([a1, a2])
 
+    series1 = df1[0]
+    print(series1)
+
+    print(series1[1])
+
+    print(df1)
+    """
+
+    # initial_guess = np.random.dirichlet(np.ones(5))
+    # print(initial_guess)
+
+    # is_special_zone = list(map(lambda name: name in AssetSetting.weights_zone, AssetSetting.ASSETS_NAME))
+    # print(is_special_zone)
+    # test1 = np.random.random()
+    # print(test1)
+
+    a = np.array([1, -1])
+
+    result = np.all(a > 0)
+
+    print(result)
+
+
+
+    """
     data = {
         'returns_a': [0.01, -0.02, 0.03, 0.01, -0.01, 0.02, -0.03, 0.04, -0.01, 0.02],
         'returns_b': [0.02, -0.02, 0.03, 0.01, -0.01, 0.02, -0.03, 0.04, -0.01, 0.02]
@@ -234,3 +293,8 @@ if __name__ == '__main__':
     print(df_rolling)
 
     print(sumprod)
+
+    cml_x = np.linspace(0.0, 0.25)
+
+    print("cml_x = np.linspace(0.0, 0.25): %s" % cml_x)
+    """

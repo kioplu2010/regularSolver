@@ -140,7 +140,8 @@ class Portfolio:
 
     # 返回投资组合的预期波动率
     def get_portfolio_volatility(self):
-        weights_vols = np.dot(np.transpose(self.get_weights_array()), self.get_vols_array())
+        # 考虑资产权重和资产波动率都是一维数组，此处为获得矩阵应求外积
+        weights_vols = np.outer(self.get_weights_array(), self.get_vols_array())
         variance = np.sum((weights_vols * np.transpose(weights_vols) * self.correlations).values)
         volatility = variance ** 0.5
         return volatility
@@ -256,21 +257,19 @@ if __name__ == '__main__':
                              config.ExcelFileSetting.GOV_BOND_DATA_MULTIPLIER)
 
     # 获取历史利率曲线的滚动年化数据，由于数据本身是年化收益率，滚动收益率直接12个月平均值
-    # df_yield_rolling = df_yield.rolling(window=config.ExcelFileSetting.MONTHS).apply(lambda x: x.mean())
-    df_yield_rolling = df_yield
+    df_yield_rolling = df_yield.rolling(window=config.ExcelFileSetting.MONTHS).apply(lambda x: x.mean())
 
     # 获取历史指数价格数据，转换为价格涨跌幅便于后续使用
     df_return = dfs_prepared[config.ExcelFileSetting.DATA_LIST[1]].pct_change()
 
     # 获取历史指数价格涨跌幅的滚动年化数据
-    df_return_rolling = (1 +df_return).rolling(window=config.ExcelFileSetting.MONTHS).apply(lambda x: x.prod()) - 1
+    df_return_rolling = (1 + df_return).rolling(window=config.ExcelFileSetting.MONTHS).apply(lambda x: x.prod()) - 1
 
     # 合并原始数据,并获取需要的时间区间数据
     df_data_merge_src = pd.merge(df_yield ,df_return, left_index=True, right_index=True)
     df_data_merge = df_data_merge_src[start_date:end_date]
 
-
-    # 合并滚动年化数据
+    # 合并滚动年化数据，便于计算相关系统矩阵
     df_data_rolling_src = pd.merge(df_yield_rolling, df_return_rolling, left_index=True, right_index=True)
     df_data_merge_rolling = df_data_rolling_src[start_date:end_date]
 
@@ -317,7 +316,7 @@ if __name__ == '__main__':
     # 构建投资组合，为各类资产设定名称与参数，为方便构造，暂时将各类资产的参数都参照历史市场基准设定
     # TODO 后续扩展的时候可以对各类资产的参数做精细化调整，例如结合宏观经济数据设定各类资产的预期收益率，
     # TODO 通过自回归模型（GARCH）去设定各类资产的预期波动率，其他参数和相关系数矩阵可沿用市场历史基准参数
-    for asset_name in config.AssetSetting.ASSETS_NAME:
+    for asset_name in config.PortfolioSetting.ASSETS_NAME:
         # 通过各类资产对应的市场基准获取基准名称
         benchmark_name = config.AssetSetting.ASSET_BENCHMARKS[asset_name]
         # 通过基准名称获取对应的市场基准数据
@@ -336,7 +335,7 @@ if __name__ == '__main__':
                                      df_data_merge_rolling[market_data_para.name] * market_data_para.weight,
                                      benchmark_para.market_data))
 
-        weighted_bench_rolling = sum(bench_series_list)
+        weighted_bench_rolling = sum(bench_series_list_rolling)
 
         # 将混合基准加入市场基准数据集,汇总的前提是所有市场基准有相同的index，即相同的日期index
         # TODO 当前将所有市场基准的时间区间设置为一致，且用日期作为所有时间序列的index，因此可以直接合并
@@ -362,10 +361,9 @@ if __name__ == '__main__':
     """
     # 计算相关系数矩阵,默认为计算皮尔逊相关系数（'pearson'）
     corr_matrix = df_bench_rolling.corr()
-    df_bench_rolling.to_excel(config.ExcelFileSetting.TEST_PATH)
 
     # 计算资产种类
-    asset_types = len(config.AssetSetting.ASSETS_NAME)
+    asset_types = len(config.PortfolioSetting.ASSETS_NAME)
 
     # 初始化资产权重，等权简化处理
     origin_weights = [1 / asset_types for x in range(asset_types)]
@@ -377,12 +375,12 @@ if __name__ == '__main__':
     以下模块的作用是计算马科维兹有效前沿
     """
     portfolios = Markowitz.get_efficient_frontier(Markowitz.min_volatility, origin_portfolio,
-                                                  config.AssetSetting.INEQ_CONS)
+                                                  config.AssetSetting.INEQ_CONS, 200)
 
     """
     以下模块的作用是保存计算结果
     """
-    save.SaveFrontier.save_all_to_excel(portfolios)
+    save.SaveFrontier.save_data_to_local(portfolios)
 
     print("Well Done!")
 
