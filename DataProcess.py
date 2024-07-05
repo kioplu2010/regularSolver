@@ -65,47 +65,7 @@ def data_prepare(src_dfs: dict):
 
 
 if __name__ == '__main__':
-    dfs = read_data_from_execl(config.ExcelFileSetting.SOURCE_PATH, config.ExcelFileSetting.DATA_LIST,
-                               config.ExcelFileSetting.INDEX_COLUMN)
-    dfs_prepared = data_prepare(dfs)
 
-    # 获取历史到期收益率数据
-    df_yield = dfs_prepared[config.ExcelFileSetting.DATA_LIST[0]]
-
-    # print("df_yield.index %s " % df_yield.index)
-    # print("df_yield.columns %s " % df_yield.columns)
-
-    gov_bond_yield_series = df_yield[config.ExcelFileSetting.GOV_BOND_COLUMN]
-
-    start_date = '2014-06-30'
-    end_date = '2024-05-31'
-
-    history_yield = gov_bond_yield_series[start_date:end_date] / 100
-    annul_return = history_yield.mean()
-    annul_volatility = history_yield.std()
-    skewness = stats.skew(history_yield.astype(float))
-    excess_kurtosis = stats.kurtosis(history_yield.astype(float))
-
-    # print("history_yield annul_return %s " % annul_return)
-    # print("history_yield annul_volatility %s " % annul_volatility)
-    # print("history_yield skewness %s " % skewness)
-    # print("history_yield excess_kurtosis %s " % excess_kurtosis)
-
-    # print("gov_bond_yield_series.index %s " % gov_bond_yield_series.index)
-
-    # print("gov_bond_yield_series.array %s " % gov_bond_yield_series.array)
-
-    # print("gov_bond_yield_series to period() %s " % gov_bond_yield_series.to_period(freq='M'))
-
-    # 获取市场指数历史价格数据
-    df_price = dfs_prepared[config.ExcelFileSetting.DATA_LIST[1]].pct_change()
-    print(df_price.head())
+    pass
 
 
-"""
-    for sheet_name, df in dfs_prepared.items():
-        print(f"Sheet Name: {sheet_name}")
-        print("df index: %s " % df.index)
-        print("df columns: %s " % df.columns)
-        print(df.head())
-"""

@@ -375,10 +375,10 @@ if __name__ == '__main__':
     以下模块的作用是计算马科维兹有效前沿
     """
     portfolios = Markowitz.get_efficient_frontier(Markowitz.min_volatility, origin_portfolio,
-                                                  config.AssetSetting.INEQ_CONS, 200)
+                                                  config.PortfolioSetting.INEQ_CONS, 200)
 
     """
-    以下模块的作用是保存计算结果
+    以下模块的作用是保存计算结果，将数据保存到excel，并单独保存图像
     """
     save.SaveFrontier.save_data_to_local(portfolios)
 

@@ -50,6 +50,9 @@ class ExcelFileSetting:
     # 结果存放地址
     OUTPUT_PATH = "%s/result/efficient_frontier.xlsx" % (os.getcwd())
 
+    # 测试数据存放地址
+    TEST_PATH = "%s/result/test.xlsx" % (os.getcwd())
+
     """
     存放数据使用的标签名称，用作表名或列名
     """
@@ -193,26 +196,10 @@ class AssetSetting:
     """
     # 先用4类资产做测试
     ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity', 'HK_equity']
+
+    # 存储资产名称与基准名称的对应关系
     ASSET_BENCHMARKS = {'cash': 'money_fund', 'gov_bond': '30_year_gov_bond', 'credit_bond': 'High_level_credit',
                         'China_equity': 'CSI300', 'HK_equity': 'HSIRH'}
-
-    # 假设权益资产配置不超过30%
-    # TODO 后续各类资产的权重限制条件可存入配置文件或数据库
-    # 用于存储各类资产权重的上下限，未设置的默认为（0，1）
-    weights_zone = {'China_equity': (0, 0.3)}
-
-    """
-    以下是官网的示例，摘录备查，其中'jac'代表降梯度函数，即导数
-    ineq_cons = {'type': 'ineq',
-             'fun' : lambda x: np.array([1 - x[0] - 2*x[1],
-                                         1 - x[0]**2 - x[1],
-                                         1 - x[0]**2 + x[1]])
-    eq_cons = {'type': 'eq',
-           'fun' : lambda x: np.array([2*x[0] + x[1] - 1]),
-           'jac' : lambda x: np.array([2.0, 1.0])}
-    """
-    # 将不等约束条件
-    INEQ_CONS = [{'type': 'ineq', 'fun': lambda weights: 0.3 - weights[3]}]
 
 
 @dataclass
@@ -224,6 +211,24 @@ class PortfolioSetting:
     # 建立4类资产的投资组合
     ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity']
 
+    # 假设权益资产配置不超过30%
+    # TODO 后续各类资产的权重限制条件可存入配置文件或数据库
+
+    # 用于存储各类资产权重的上下限，未设置的默认为（0，1）
+    WEIGHTS_INTERVAL = {'China_equity': (0, 0.3)}
+
+    # 将不等约束条件
+    """
+        以下是官网的示例，摘录备查，其中'jac'代表降梯度函数，即导数
+        ineq_cons = {'type': 'ineq',
+                 'fun' : lambda x: np.array([1 - x[0] - 2*x[1],
+                                             1 - x[0]**2 - x[1],
+                                             1 - x[0]**2 + x[1]])
+        eq_cons = {'type': 'eq',
+               'fun' : lambda x: np.array([2*x[0] + x[1] - 1]),
+               'jac' : lambda x: np.array([2.0, 1.0])}
+    """
+    INEQ_CONS = [{'type': 'ineq', 'fun': lambda weights: 0.3 - weights[3]}]
 
 
 @dataclass
@@ -236,6 +241,12 @@ class PlotSetting:
 
     # 画布大小设定
     FIGURE_SIZE = (10, 6)
+
+    # 散点图个数
+    SCATTER_COUNTS = 1000
+
+    # 存放标签名称
+    LABEL_CML = "capital_market_line"
 
 
 if __name__ == '__main__':
@@ -271,7 +282,7 @@ if __name__ == '__main__':
 
     result = np.all(a > 0)
 
-    print(result)
+    print(np.linspace(0.0, 0.25))
 
 
 

@@ -24,17 +24,26 @@ class SaveFrontier:
         :return: (down, up)，若down大于up，返回（0,0）
         """
         down = max([x[0] for x in interval_list])
-        up = min([y[0] for y in interval_list])
+        up = min([y[1] for y in interval_list])
         if down <= up:
-            return tuple(down, up)
+            return (down, up)
         else:
-            return tuple(0.0, 0.0)
+            return (0.0, 0.0)
 
     @staticmethod
     def get_random_weights(weights_interval: Dict[str, Tuple[float, float]], counts: int = 1000,
-                           constraints: List = []) -> pd.DataFrame:
+                           constraints: List = []) -> Tuple[pd.DataFrame, int]:
         """
-        此函数的作用是返回符合约束条件的资产权重的随机数组，当前只考虑了对每个资产分别设定上下限的情况
+        此函数的作用是返回符合约束条件的资产权重的随机数组，为提高效率，将约束条件分为两种：
+        1.为每类资产权重设定的上下限，注意不包含默认的（0,1）
+        2.其他复杂约束，可以用生成有效前沿的约束去除资产上下限约束得到
+        函数设计思路分布处理：
+        1.为有额外资产上下限的资产逐一生成权重，为保证随机性，每次生成的顺序采用随机排列
+        2.为上下限为（0,1）的其他资产生成权重
+        3.检查生成的资产权重是否满足其他复杂约束，若满足则计入返回结果
+        需要考虑的特殊情况：
+        如果约束条件过于复杂或者存在逻辑错误，可能导致生成的随机数据很难满足要求，从而大幅增加计算量。
+        为避免死循环，将循环上限限制为执行10倍次数，执行到上限后，不论是否已有足够的返回值都直接返回
         # TODO 考虑更加复杂的约束，用constraints传递，每次生成好的数据做检查，直至满足条件的数量达标为止
         # TODO 需要注意的是，单资产的上下限在生成随机数据时已经满足要求，因此此处使用的constraints与计算有效前沿时比要去除重复
         :param weights_interval:各类资产权重的上下限区间，不包含默认（0，1）的上下限区间
@@ -55,13 +64,13 @@ class SaveFrontier:
         down_sum = 0.0
 
         # 检查各类资产权重的上下限区间是否处于（0,1）之间
-        for limit in weights_interval.values():
-            if limit[0] < 0 or limit[1] > 1:
+        for interval in weights_interval.values():
+            if interval[0] < 0 or interval[1] > 1:
                 raise ValueError("传递了无效的参数值:weights_interval, 各类资产权重的上下限区间应该处于（0,1）之间")
-            elif limit[0] > limit[1]:
+            elif interval[0] > interval[1]:
                 raise ValueError("传递了无效的参数值:weights_interval, 各类资产权重的下限应该小于等于上限")
             else:
-                down_sum += limit[0]
+                down_sum += interval[0]
 
         # 检查各类资产的下限加总是否小于1
         if down_sum > 1:
@@ -74,15 +83,15 @@ class SaveFrontier:
         no_extra_loc = []
 
         # 检查各类资产是否有额外的上下限区间并保存结果
-        for iloc in range(ntype):
+        for x in range(ntype):
             # 获取资产名称
-            name = config.PortfolioSetting.ASSETS_NAME[iloc]
+            name = config.PortfolioSetting.ASSETS_NAME[x]
 
             # 检查并存放结果
             if name in weights_interval:
-                is_extra_loc.append(iloc)
+                is_extra_loc.append(x)
             else:
-                no_extra_loc.append(iloc)
+                no_extra_loc.append(x)
 
         # 建立随机数生成器
         random_gen = np.random.default_rng()
@@ -99,12 +108,12 @@ class SaveFrontier:
             random_gen.shuffle(shuffle_loc)
 
             # 保存生成资产权重随机数的区间
-            random_interval = (0, 1)
+            random_interval = (0.0, 1.0)
 
             # 用来保存已生成的随机数加总
             random_sum = 0.0
 
-            # 用来保存已生成的随机数的下行加总
+            # 用来保存已生成的随机数的下限加总
             random_down_sum = 0.0
 
             """
@@ -117,8 +126,12 @@ class SaveFrontier:
                 # 根据资产名称获取上下限
                 interval_i = weights_interval[name]
 
+                # 计算出除当前资产之外的其他资产的下限加总决定的隐含区间
+                # 例如两类资产权重区间分别为A：（0.4，0.7)与B:（0.5，0.8），实际上A的区间应该为（0.4,0.5）
+                other_interval = (0, 1 - down_sum + random_down_sum)
+
                 # 合并区间，把剩余资产权重的上限和此类资产的上下限合并
-                interval_merge = SaveFrontier.merge_interval([random_interval, interval_i])
+                interval_merge = SaveFrontier.merge_interval([other_interval, random_interval, interval_i])
 
                 # 生成符合条件的随机数 y=（b-a) * x + a
                 weight_i = np.random.random() * (interval_merge[1] - interval_merge[0]) + interval_merge[0]
@@ -132,11 +145,8 @@ class SaveFrontier:
                 # 加总已生成的资产权重的下限
                 random_down_sum += interval_merge[0]
 
-                # 更新生成资产权重随机数的区间
-                # 第一个区间保障下一个随机数据与之前已生成的随机数据加总小于等于1
-                # 第二个区间保障下一个随机数据生成后不会让后续的随
-                random_interval = SaveFrontier.merge_interval([(0, 1 - random_sum),
-                                                               (0, 1 - down_sum + random_down_sum)])
+                # 更新生成资产权重随机数的区间，保障下一个随机数据与之前已生成的随机数据加总小于等于1
+                random_interval = (0, 1 - random_sum)
 
             """
             为没有额外上下限区间的资产生成权重
@@ -156,35 +166,34 @@ class SaveFrontier:
             """
             将有额外上下限区间的资产和没有没有额外上下限区间的资产的权重合并
             """
-            for xloc in is_extra_loc:
-                weights[xloc] = extra_weight[xloc]
-
-            for yloc in no_extra_loc:
-                weights[yloc] = no_extra_weight[yloc]
+            weights = [extra_weights[x] if x in is_extra_loc else no_extra_weights[x] for x in range(len(weights))]
 
             # 存储检查结果
-            is_qualified = False
+            is_qualified = True
 
             # 检查生成的资产权重随机数组是否满足更加复杂的约束条件
             for constraint in constraints:
                 # 获取约束函数
-                check_func = constraints["func"]
+                check_func = constraint["fun"]
 
                 # 输入生成的资产权重随机数组，获取执行结果
                 check_result = check_func(weights)
 
                 # 检查执行结果是否满足约束条件
-                if constraints['type'] == "ineq":
-                    is_qualified = np.all(check_result > 0)
-                elif constraints['type'] == "eq":
-                    is_qualified = np.all(check_result == 0)
+                if constraint['type'] == "ineq":
+                    # 不等条件默认要求大于0
+                    if not np.all(check_result > 0):
+                        is_qualified = False
+                elif constraint['type'] == "eq":
+                    # 生成的随机数据满足等于条件的概率极低，若有类似条件应该特殊处理
+                    pass
                 else:
-                    is_qualified = True
+                    pass
 
             # 若检查结果符合约束条件，将生成的资产权重随机数组加入返回值
             if is_qualified:
                 qualified_counts += 1
-                qualified_result.append(weights.tolist())
+                qualified_result.append(weights)
 
             # 若符合要求条件的随机数组已达到要求个数，结束循环
             if qualified_counts == counts:
@@ -193,15 +202,14 @@ class SaveFrontier:
         # 将结果数据放入dataFrame
         df_result = pd.DataFrame(data=qualified_result, columns=config.PortfolioSetting.ASSETS_NAME)
 
-        return df_result
-
+        return df_result, qualified_counts
 
     @staticmethod
     def tangent_equations(paras: List, tck: tuple,  risk_free_return=config.BenchmarkSetting.RISK_FREE_RATE):
         """
         此函数的作用是作为fsolve优化函数的参数，优化目标是调整paras，使得返回值都等于0，要求返回参数个数与传入参数个数相等
         :param paras:第一个参数为无风险收益率R_f，一般来说无风险收益率为预先设定值，所以其实第一个参数可以省略，同步去掉第一个返回值即可
-                     第二个参数为斜率，即是 R_m/σ_m，假设为b
+                     第二个参数为斜率，即是 (R_m-R_f)/σ_m，假设为b
                      第三个参数为波动率，即是σ_m，是函数的参数
                      由传入的三个参数可以得到直线函数Y(x) = bx + R_f
         :param tck: 根据收益率序列与波动率序列得到的有效前沿光滑曲线的参数，假设曲线代表的函数为Z(X)
@@ -288,17 +296,16 @@ class SaveFrontier:
                                            index_label=config.ExcelFileSetting.LABEL_PORTFOLIO_NAME)
 
         """
-        以下模块的作用是生成画布, 在画布上生成图像
+        # 以下模块的作用是生成所需数据
         """
-        # 生成画布
-        plt.figure(config.PlotSetting.FIGURE_SIZE)
         """
         # 资本市场线（Capital Market Line）
         # 相关假设：可以按无风险利率借入或借出现金，现金无波动率，所以借入或借出资金后的组合收益率与组合波动率如下
         # 公式: E(R_p) = Q * R_m + (1-Q) * R_f  σ_p = Q * σ_m 其中Q是新组合中风险资产的占比
         # 公式: E(R_p) = R_f + [E(R_m) - R_f] * [σ_p / σ_m]
         # 生成资本市场线，本质上是求有效前沿上的点（x, y)与点(0, R_f)，此两点相连恰好与曲线相切
-        # （此判断不对，待验证）又因为sharp = (R_p - R_f) / σ_m，在无风险收益率确定的前提下，此问题等同于求组合夏普比率最大的点
+        # 又因为sharp = (R_p - R_f) / σ_m，所以sharp等于直线（x, y)与点(0, R_f)的斜率
+        # 当直线与曲线相切时斜率最大，所以在无风险收益率确定的前提下，此问题等同于求组合夏普比率最大的点
         # 所以如果不考虑展示图的平滑效果，可以直接用传入参数系列投资组合中夏普比率最大的点和（0，R_f)点相连得到CML
         # 而且从实用角度看，平滑过的有效前沿只有组合预期收益率和组合波动率的数据，并没有各类资产的权重，因此无实际应用的意义
         """
@@ -311,33 +318,129 @@ class SaveFrontier:
 
         # 一般来说最小波动率应该是第一个组合，考虑部分目标函数使得优化器计算的有效前沿有一段下弯，以下操作可用来排除下弯数据
         # 获取最小组合波动率的index
-        index_min = np.argmin(series_vol)
-        up_series_return = series_return.iloc[index_min:]
-        up_series_vol = series_vol.iloc[index_min:]
-        up_series_sharp = series_sharp.iloc[index_min:]
+        index_min_vol = np.argmin(series_vol)
+
+        print("index_min_vol: %s" % index_min_vol)
+
+        # 获取最大组合夏普比率的index
+        index_max_sharp = np.argmax(series_sharp)
+
+        # 获取去除下弯的数据
+        up_series_return = series_return.iloc[index_min_vol:]
+        up_series_vol = series_vol.iloc[index_min_vol:]
+        up_series_sharp = series_sharp.iloc[index_min_vol:]
 
         # 获取收益率与波动率的光滑曲线
         tck = sci.splrep(up_series_vol, up_series_return)
 
+        # print("tck : %s" % tck)
+
         # 假设（x,y)是曲线上的点，获取从点（0,R_f)出发的曲线切线
         initial_x = (np.min(series_vol) + np.max(series_vol)) / 2
-        initial_paras = [config.BenchmarkSetting.RISK_FREE_RATE, 0.5, initial_x]
-        tangent_line_x = sco.fsolve(SaveFrontier.tangent_equations, initial_paras,
-                                    args=(tck, config.BenchmarkSetting.RISK_FREE_RATE))
 
-        """
-        # 画散点图
-        """
+        print("initial_x: %s" % initial_x)
+
+        # 3个参数分别为无风险利率、斜率和波动率（x轴）
+        initial_paras = [config.BenchmarkSetting.RISK_FREE_RATE, 1, initial_x]
+        tangent_paras = sco.fsolve(SaveFrontier.tangent_equations, initial_paras,
+                                   args=(tck, config.BenchmarkSetting.RISK_FREE_RATE))
+
+        print("tangent_paras: %s" % tangent_paras)
+
         # 先生成符合约束条件的资产权重随机数组
+        df_random_weights, n_results = SaveFrontier.get_random_weights(config.PortfolioSetting.WEIGHTS_INTERVAL,
+                                                                       config.PlotSetting.SCATTER_COUNTS,
+                                                                       config.PortfolioSetting.INEQ_CONS)
 
-        # plt.scatter(portfolio_volatilities, portfolio_returns,
-        #            c=(portfolio_returns - 0.02) / portfolio_volatilities, marker='o')
+        # TODO test
+        df_random_weights.to_excel(config.ExcelFileSetting.TEST_PATH, sheet_name="random_weights")
+
+        # 用来存储随机数组对应的组合波动率与组合收益率
+        random_volatilities = []
+        random_returns = []
+        random_sharpes = []
+
+        # 用来存续随机权重的投资组合
+        random_portfolio = portfolios[0]
+
+        # 生成随机数组对应的组合波动率、组合收益率与组合夏普比率
+        for index, assets_weight in df_random_weights.iterrows():
+            random_portfolio.weights = assets_weight
+            random_returns.append(random_portfolio.get_portfolio_return())
+            random_volatilities.append(random_portfolio.get_portfolio_volatility())
+            random_sharpes.append(random_portfolio.get_portfolio_sharpe())
+
+        """
+        以下模块的作用是用前面生成的数据画图
+        """
+        # 生成画布
+        plt.figure(figsize=config.PlotSetting.FIGURE_SIZE)
+
+        # 画优化求解的有效前沿,x轴用波动率，y轴用收益率，颜色按夏普比例映射,marker标记点的形状
+        plt.scatter(x=series_vol.tolist(), y=series_return.tolist(), c=series_sharp.tolist(), marker='x')
+
+        # 画随机散点图,x轴用波动率，y轴用收益率，颜色按夏普比例映射,marker标记点的形状
+        plt.scatter(x=random_volatilities, y=random_returns, c=random_sharpes, marker='o')
+
+        # 标记波动率最小的点，颜色设定为绿色
+        plt.plot(series_vol.iloc[index_min_vol], series_return.iloc[index_min_vol], color='g', markersize=15.0)
+
+        # 标记夏普比率最大的点，颜色设定为黄色
+        plt.plot(series_vol.iloc[index_max_sharp], series_return.iloc[index_max_sharp], color='y', markersize=15.0)
+
+        # 获取最小的组合波动率
+        min_vol = series_vol.min()
 
         # 获取最大的组合波动率
         max_vol = series_vol.max()
 
-        # 预设CML的x轴从0至最大组合波动率
-        cml_x = np.linspace(0.0, max_vol)
+        # 获取资本市场线上对应最大波动率的收益率, tangent_line_x[0]为无风险利率，tangent_line_x[1]为切线斜率
+        y_max_vol = config.BenchmarkSetting.RISK_FREE_RATE + series_sharp.iloc[index_max_sharp] * max_vol
+        # y_max_vol = tangent_paras[1] * max_vol + tangent_paras[0]
+
+        # 画资本市场线，颜色设定为蓝色，线宽1.5
+        plt.plot([0, max_vol], [tangent_paras[0], y_max_vol], color='b', linewidth=1.5,
+                 label=config.PlotSetting.LABEL_CML)
+
+        print("max_vol :%s, y_max_vol: %s" % (max_vol, y_max_vol))
+
+        # 画有效前沿的光滑曲线
+        # 均匀的生成100个点
+        curve_x = np.linspace(min_vol, max_vol, 100)
+
+        # 获取对应的收益率（y轴值）
+        curve_y = sci.splev(curve_x, tck, der=0)
+
+        # 画出有效前沿曲线，颜色指定为天空蓝，线宽2.0
+        plt.plot(curve_x, curve_y, color='xkcd:sky blue', linewidth=1.5,
+                 label=config.ExcelFileSetting.LABEL_EFFICIENT_FRONTIER)
+
+        # 标记资本市场线与有效前沿的切点，其中tangent_paras[2]为切点的波动率（x轴坐标）
+        plt.plot(tangent_paras[2], sci.splev(tangent_paras[2], tck, der=0), color='r', markersize=15.0)
+
+        # 添加横坐标，颜色为黑色，样式为虚线，线宽为2.0
+        plt.axhline(0, color='k', ls='--', lw=2.0)
+
+        # 添加纵坐标，颜色为黑色，样式为虚线，线宽为2.0
+        plt.axvline(0, color='k', ls='--', lw=2.0)
+
+        # 设置x轴的标签
+        plt.xlabel(xlabel=config.ExcelFileSetting.LABEL_EXPECTED_VOLATILITY)
+        # 设置y轴的标签
+        plt.ylabel(ylabel=config.ExcelFileSetting.LABEL_EXPECTED_RETURN)
+
+        # 设置colorbar的标签
+        plt.colorbar(label=config.ExcelFileSetting.LABEL_SHARP_RATIO)
+
+        # 将已画好的线的标签加入画布中，此处未指定位置，会自动根据图的情况选择位置
+        plt.legend()
+
+        # 添加网格线
+        plt.grid(True)
+
+        # 存储生成的图片到本地
+        plt.savefig(config.PlotSetting.RESULT_IMAGE_PATH)
+
 
 
 
