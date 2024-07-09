@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.interpolate as sci
 import scipy.optimize as sco
+from scipy import stats
 from regularSolver.AssetAllocation import Portfolio
 from matplotlib.ticker import FuncFormatter
 from typing import Final, Dict, Tuple, List
@@ -284,8 +285,8 @@ class SaveFrontier:
         # 建立DataFrame存储存放投资组合数据
         df_efficient_frontier = pd.DataFrame(data=portfolio_data, index=portfolio_names, columns=portfolio_data_names)
 
-        # 存放到excel
-        with pd.ExcelWriter(config.ExcelFileSetting.OUTPUT_PATH) as writer:
+        # 将有效前沿数据存放到excel
+        with pd.ExcelWriter(config.ExcelFileSetting.EFFICIENT_FRONTIER_PATH) as writer:
             # 将资产参数写入excel
             df_assets_paras.to_excel(writer, sheet_name=config.ExcelFileSetting.LABEL_ASSETS_PARAS,
                                      index_label=config.ExcelFileSetting.LABEL_ASSETS_NAME)
@@ -440,6 +441,103 @@ class SaveFrontier:
 
         # 存储添加了资本市场线的图片到本地
         plt.savefig(config.PlotSetting.CML_IMAGE_PATH)
+
+
+class SaveMonteCarlo:
+    """
+    用来保存已计算好的收益率序列与期末金额序列
+    """
+    @staticmethod
+    def get_stats(data_array: np.ndarray):
+        # 计算均值
+        mean = data_array.mean()
+
+        # 计算波动率
+        volatility = data_array.std()
+
+        # 计算偏度
+        skewness = stats.skew(data_array.astype(float))
+
+        # 计算收益率超值峰度
+        excess_kurtosis = stats.kurtosis(data_array.astype(float))
+
+        return mean, volatility, skewness, excess_kurtosis
+
+    @staticmethod
+    def save_data_to_hist(returns: np.ndarray, label: str, path: str):
+        # 生成画布
+        plt.figure(figsize=config.PlotSetting.FIGURE_SIZE)
+
+        # 生成直方图
+        plt.hist(returns, bins=100, density=True, label=config.MonteCarloSetting.LABEL_SIMULATED_RETURNS)
+
+        # 生成概率密度曲线
+        pdf_func = stats.gaussian_kde(returns)
+
+        x_values = np.linspace(min(returns), max(returns), 1000)
+
+        # 画概率密度曲线
+        plt.plot(x_values, pdf_func(x_values), color='xkcd:sky blue', linewidth=2.0)
+
+        mean, volatility, skewness, excess_kurtosis = SaveMonteCarlo.get_stats(returns)
+
+        plt.text(0.05, 0.95, 'mean :' + str(mean), transform=plt.gca().transAxes,
+                 fontsize=12, color='blue')
+        plt.text(0.05, 0.90, 'volatility :' + str(volatility), transform=plt.gca().transAxes,
+                 fontsize=12, color='blue')
+        plt.text(0.05, 0.85, 'skewness :' + str(skewness), transform=plt.gca().transAxes,
+                 fontsize=12, color='blue')
+        plt.text(0.05, 0.80, 'excess_kurtosis' + str(excess_kurtosis), transform=plt.gca().transAxes,
+                 fontsize=12, color='blue')
+
+        plt.title('Monte Carlo Simulation Results with PDF')
+        plt.xlabel(label)
+        plt.ylabel('Frequency')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(path)
+
+    @staticmethod
+    def save_data_to_local(returns: np.ndarray, amounts: np.ndarray):
+
+        # 计算收益率的均值、波动率、偏度与超值峰度
+        return_mean, return_volatility, return_skewness, return_excess_kurtosis = SaveMonteCarlo.get_stats(returns)
+
+        # 计算期末金额的均值、波动率、偏度与超值峰度
+        amount_mean, amount_volatility, amount_skewness, amount_excess_kurtosis = SaveMonteCarlo.get_stats(amounts)
+
+        # 保存用来存储的数据
+        simulated_data = [[return_mean, return_volatility, return_skewness, return_excess_kurtosis],
+                          [amount_mean, amount_volatility, amount_skewness, amount_excess_kurtosis]]
+
+        # 数据的行名称
+        index_names = [config.ExcelFileSetting.LABEL_RETURNS, config.ExcelFileSetting.LABEL_AMOUNTS]
+
+        # 数据的列名称
+        column_names = [config.ExcelFileSetting.LABEL_MEAN, config.ExcelFileSetting.LABEL_EXPECTED_VOLATILITY,
+                        config.ExcelFileSetting.LABEL_SKEWNESS, config.ExcelFileSetting.LABEL_EXCESS_KURTOSIS]
+
+        df_simulated_data = pd.DataFrame(data=simulated_data, index=index_names, columns=column_names)
+
+        # 保存蒙特卡洛模拟结果数据到excel
+        df_simulated_data.to_excel(config.ExcelFileSetting.MONTECARLO_PATH,
+                                   sheet_name=config.ExcelFileSetting.LABEL_MONTECARLO)
+
+        # 保存模拟收益率直方图
+        SaveMonteCarlo.save_data_to_hist(returns, config.ExcelFileSetting.LABEL_RETURNS,
+                                         config.PlotSetting.MCS_RETURN_IMAGE_PATH)
+
+        # 保存期末投资金额直方图
+        SaveMonteCarlo.save_data_to_hist(amounts, config.ExcelFileSetting.LABEL_AMOUNTS,
+                                         config.PlotSetting.MCS_AMOUNT_IMAGE_PATH)
+
+
+if __name__ == '__main__':
+
+    pass
+    # std_norm = sci.rvs(size=100)
+    # print(std_norm)
+
 
 
 

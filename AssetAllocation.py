@@ -7,7 +7,6 @@ import scipy.interpolate as sci
 from scipy import stats
 from regularSolver import DataProcess as dp
 from regularSolver import SAAconfig as config
-from regularSolver import SaveResult as save
 from typing import Final, Dict, Tuple, List
 
 
@@ -98,7 +97,7 @@ class Portfolio:
     """
     定义投资组合
     """
-    def __init__(self, name: str, assets: list, weights: list, correlations):
+    def __init__(self, name: str, assets: list, weights: List[int], correlations):
         self.name = name
         self.assets = assets
         self.weights = weights
@@ -380,7 +379,7 @@ if __name__ == '__main__':
     """
     以下模块的作用是保存计算结果，将数据保存到excel，并单独保存图像
     """
-    save.SaveFrontier.save_data_to_local(portfolios)
+    # SaveFrontier.save_data_to_local(portfolios)
 
     print("Well Done!")
 

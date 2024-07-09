@@ -47,8 +47,11 @@ class ExcelFileSetting:
     # 源数据存放地址
     SOURCE_PATH = "%s/data/SAAData.xlsx" % (os.getcwd())
 
-    # 结果存放地址
-    OUTPUT_PATH = "%s/result/efficient_frontier.xlsx" % (os.getcwd())
+    # 有效前沿数据结果存放地址
+    EFFICIENT_FRONTIER_PATH = "%s/result/efficient_frontier.xlsx" % (os.getcwd())
+
+    # 有效前沿数据结果存放地址
+    MONTECARLO_PATH = "%s/result/MonteCarlo.xlsx" % (os.getcwd())
 
     # 测试数据存放地址
     TEST_PATH = "%s/result/test.xlsx" % (os.getcwd())
@@ -68,6 +71,10 @@ class ExcelFileSetting:
     LABEL_PORTFOLIO_NAME = "portfolio_name"
     LABEL_SHARP_RATIO = "sharp_ratio"
     LABEL_IMAGE = "image"
+    LABEL_RETURNS = "returns"
+    LABEL_AMOUNTS = "amounts"
+    LABEL_MEAN = "mean"
+    LABEL_MONTECARLO = "MonteCarlo"
 
     # 各类数据存放的sheet名
     DATA_LIST = ["HistoryYield", "HistoryIndex"]
@@ -242,6 +249,12 @@ class PlotSetting:
     # 生成图像的存放地点，含资本市场线的图
     CML_IMAGE_PATH = "%s/result/capital_market_line.png" % (os.getcwd())
 
+    # 生成图像的存放地点，蒙特卡洛模拟收益率的直方图
+    MCS_RETURN_IMAGE_PATH = "%s/result/MonteCarlo_returns.png" % (os.getcwd())
+
+    # 生成图像的存放地点，蒙特卡洛期末投资金额的直方图
+    MCS_AMOUNT_IMAGE_PATH = "%s/result/MonteCarlo_amount.png" % (os.getcwd())
+
     # 画布大小设定
     FIGURE_SIZE = (10, 6)
 
@@ -259,6 +272,27 @@ class MonteCarloSetting:
     """
     # 蒙特卡洛的次数
     MONTE_CARLO_CONUTS = 10000
+
+    # 期初金额，单位假设为亿元
+    START_AMOUNT = 10000
+
+    # 蒙特卡洛的期限，假设为3年
+    TERMS = 3
+
+    # 预期现金流
+    NET_CASH_FLOW = [744, 548, 423]
+
+    # 选定的投资组合权重C
+    SELECTED_WEIGHTS = [0, 0.3569, 0.6369, 0.0061]
+
+    # 蒙特卡洛模拟数据标签
+    LABEL_MONTECARLO = "MonteCarlo_simulations"
+
+    # 模拟收益率标签
+    LABEL_SIMULATED_RETURNS = "simulated_returns"
+
+    # 模拟期末金额标签
+    LABEL_SIMULATED_AMOUNTS = "simulated_amounts"
 
 
 if __name__ == '__main__':
@@ -290,11 +324,11 @@ if __name__ == '__main__':
     # test1 = np.random.random()
     # print(test1)
 
-    a = np.array([1, -1])
+    a = np.zeros((10, 5))
 
-    result = np.all(a > 0)
+    print(a)
 
-    print(np.linspace(0.0, 0.25))
+    # std_norm = sci.norm.rvs(size=self.counts)
 
 
 
