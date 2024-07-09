@@ -236,8 +236,11 @@ class PlotSetting:
     """
     记录生成图像的参数设定
     """
-    # 生成图像的存放地点
-    RESULT_IMAGE_PATH = "%s/result/efficient_frontier.png" % (os.getcwd())
+    # 生成图像的存放地点，只有有效前沿的图
+    EF_IMAGE_PATH = "%s/result/efficient_frontier.png" % (os.getcwd())
+
+    # 生成图像的存放地点，含资本市场线的图
+    CML_IMAGE_PATH = "%s/result/capital_market_line.png" % (os.getcwd())
 
     # 画布大小设定
     FIGURE_SIZE = (10, 6)
@@ -247,6 +250,15 @@ class PlotSetting:
 
     # 存放标签名称
     LABEL_CML = "capital_market_line"
+
+
+@dataclass
+class MonteCarloSetting:
+    """
+    记录蒙特卡洛模拟使用的参数
+    """
+    # 蒙特卡洛的次数
+    MONTE_CARLO_CONUTS = 10000
 
 
 if __name__ == '__main__':

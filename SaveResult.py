@@ -5,8 +5,7 @@ import numpy as np
 import scipy.interpolate as sci
 import scipy.optimize as sco
 from regularSolver.AssetAllocation import Portfolio
-from openpyxl import load_workbook
-from openpyxl.drawing.image import Image
+from matplotlib.ticker import FuncFormatter
 from typing import Final, Dict, Tuple, List
 from regularSolver import SAAconfig as config
 
@@ -221,13 +220,17 @@ class SaveFrontier:
 
         # 约束条件2，Y(x) = Z(x)，约束切点必须在有效前沿上，对于相同的x，有相同的y值，即直线为连接点（x, Z(x))与点(0, R_f)
         # splev函数的第一参数即为x，tck为曲线参数，der表示求导数，例如der=0代表返回原函数的值，der=0代表返回一阶导数的值
-        eq2 = risk_free_return + paras[1] * paras[2] - sci.splev(paras[2], tck, der=0)
+        eq2 = paras[0] + paras[1] * paras[2] - sci.splev(paras[2], tck, der=0)
 
-        # 约束条件3，dY(x) = dZ(x),由于Y(x)是直线，dY(x)等于b
-        # dY(x)为直线的斜率，dZ(x)为一阶导数，代表曲线切线的斜率，当两者相等时直线与曲线相切
+        # 约束条件3，dY(x) = dZ(x),由于Y(x)是直线，Y(x) = bx + R_f，dY(x)等于b,为直线的斜率
+        # dZ(x)为一阶导数，代表曲线切线的斜率，当两者相等时直线与曲线相切
         eq3 = paras[1] - sci.splev(paras[2], tck, der=1)
 
         return eq1, eq2, eq3
+
+    @staticmethod
+    def to_percent_format(value, position):
+        return f'{value * 100:.2f}%'
 
     @staticmethod
     def save_data_to_local(portfolios: List[Portfolio]):
@@ -320,8 +323,6 @@ class SaveFrontier:
         # 获取最小组合波动率的index
         index_min_vol = np.argmin(series_vol)
 
-        print("index_min_vol: %s" % index_min_vol)
-
         # 获取最大组合夏普比率的index
         index_max_sharp = np.argmax(series_sharp)
 
@@ -333,27 +334,21 @@ class SaveFrontier:
         # 获取收益率与波动率的光滑曲线
         tck = sci.splrep(up_series_vol, up_series_return)
 
-        # print("tck : %s" % tck)
-
         # 假设（x,y)是曲线上的点，获取从点（0,R_f)出发的曲线切线
-        initial_x = (np.min(series_vol) + np.max(series_vol)) / 2
-
-        print("initial_x: %s" % initial_x)
+        # initial_x = (np.min(series_vol) + np.max(series_vol)) / 2
+        initial_x = series_vol.iloc[index_max_sharp]
 
         # 3个参数分别为无风险利率、斜率和波动率（x轴）
-        initial_paras = [config.BenchmarkSetting.RISK_FREE_RATE, 1, initial_x]
+        # fsolve用来求多元函数的解，用于求切线效果并不太好，优化结果对输入的初始x0值依赖较大，因此构建的初始参数需要为近似解
+        # 由前可知，切点必是sharp比率最大的点，因此将此前计算的有效前沿中sharp比例最大的组合作为初始参数
+        initial_paras = [config.BenchmarkSetting.RISK_FREE_RATE, series_sharp.max(), initial_x]
         tangent_paras = sco.fsolve(SaveFrontier.tangent_equations, initial_paras,
                                    args=(tck, config.BenchmarkSetting.RISK_FREE_RATE))
-
-        print("tangent_paras: %s" % tangent_paras)
 
         # 先生成符合约束条件的资产权重随机数组
         df_random_weights, n_results = SaveFrontier.get_random_weights(config.PortfolioSetting.WEIGHTS_INTERVAL,
                                                                        config.PlotSetting.SCATTER_COUNTS,
                                                                        config.PortfolioSetting.INEQ_CONS)
-
-        # TODO test
-        df_random_weights.to_excel(config.ExcelFileSetting.TEST_PATH, sheet_name="random_weights")
 
         # 用来存储随机数组对应的组合波动率与组合收益率
         random_volatilities = []
@@ -395,14 +390,7 @@ class SaveFrontier:
         max_vol = series_vol.max()
 
         # 获取资本市场线上对应最大波动率的收益率, tangent_line_x[0]为无风险利率，tangent_line_x[1]为切线斜率
-        y_max_vol = config.BenchmarkSetting.RISK_FREE_RATE + series_sharp.iloc[index_max_sharp] * max_vol
-        # y_max_vol = tangent_paras[1] * max_vol + tangent_paras[0]
-
-        # 画资本市场线，颜色设定为蓝色，线宽1.5
-        plt.plot([0, max_vol], [tangent_paras[0], y_max_vol], color='b', linewidth=1.5,
-                 label=config.PlotSetting.LABEL_CML)
-
-        print("max_vol :%s, y_max_vol: %s" % (max_vol, y_max_vol))
+        y_max_vol = tangent_paras[1] * max_vol + tangent_paras[0]
 
         # 画有效前沿的光滑曲线
         # 均匀的生成100个点
@@ -426,8 +414,13 @@ class SaveFrontier:
 
         # 设置x轴的标签
         plt.xlabel(xlabel=config.ExcelFileSetting.LABEL_EXPECTED_VOLATILITY)
+
         # 设置y轴的标签
         plt.ylabel(ylabel=config.ExcelFileSetting.LABEL_EXPECTED_RETURN)
+
+        # 设置标签的格式为小数点后两位
+        plt.gca().xaxis.set_major_formatter(FuncFormatter(SaveFrontier.to_percent_format))
+        plt.gca().yaxis.set_major_formatter(FuncFormatter(SaveFrontier.to_percent_format))
 
         # 设置colorbar的标签
         plt.colorbar(label=config.ExcelFileSetting.LABEL_SHARP_RATIO)
@@ -438,8 +431,15 @@ class SaveFrontier:
         # 添加网格线
         plt.grid(True)
 
-        # 存储生成的图片到本地
-        plt.savefig(config.PlotSetting.RESULT_IMAGE_PATH)
+        # 存储有效前沿图片到本地
+        plt.savefig(config.PlotSetting.EF_IMAGE_PATH)
+
+        # 画资本市场线，颜色设定为蓝色，线宽1.5
+        plt.plot([0, max_vol], [tangent_paras[0], y_max_vol], color='b', linewidth=1.5,
+                 label=config.PlotSetting.LABEL_CML)
+
+        # 存储添加了资本市场线的图片到本地
+        plt.savefig(config.PlotSetting.CML_IMAGE_PATH)
 
 
 
