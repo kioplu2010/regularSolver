@@ -465,30 +465,42 @@ class SaveMonteCarlo:
 
     @staticmethod
     def save_data_to_hist(returns: np.ndarray, label: str, path: str):
+
+        mean, volatility, skewness, excess_kurtosis = SaveMonteCarlo.get_stats(returns)
+
         # 生成画布
         plt.figure(figsize=config.PlotSetting.FIGURE_SIZE)
 
         # 生成直方图
-        plt.hist(returns, bins=100, density=True, label=config.MonteCarloSetting.LABEL_SIMULATED_RETURNS)
+        plt.hist(returns, bins=100, density=True, alpha=0.75, label=label)
 
-        # 生成概率密度曲线
+        # 生成概率密度曲线，获取函数
         pdf_func = stats.gaussian_kde(returns)
 
         x_values = np.linspace(min(returns), max(returns), 1000)
 
+        density = pdf_func.evaluate(x_values)
+
         # 画概率密度曲线
-        plt.plot(x_values, pdf_func(x_values), color='xkcd:sky blue', linewidth=2.0)
+        plt.plot(x_values, density, color='xkcd:sky blue', linewidth=2.0)
 
-        mean, volatility, skewness, excess_kurtosis = SaveMonteCarlo.get_stats(returns)
+        plt.text(0.05, 0.95, ('mean :' + "{:.2%}".format(mean)) if mean < 1 else ('mean :' + f"{mean:.2}"),
+                 transform=plt.gca().transAxes, fontsize=12, color='blue')
+        plt.text(0.05, 0.90, ('volatility :' + "{:.2%}".format(volatility)) if volatility < 1 else ('volatility :' + f"{volatility:.2}"),
+                 transform=plt.gca().transAxes, fontsize=12, color='blue')
 
-        plt.text(0.05, 0.95, 'mean :' + str(mean), transform=plt.gca().transAxes,
+        """
+        plt.text(0.05, 0.85, 'skewness :' + "{:.2}".format(skewness), transform=plt.gca().transAxes,
                  fontsize=12, color='blue')
-        plt.text(0.05, 0.90, 'volatility :' + str(volatility), transform=plt.gca().transAxes,
+        plt.text(0.05, 0.80, 'excess_kurtosis :' + "{:.2}".format(excess_kurtosis), transform=plt.gca().transAxes,
                  fontsize=12, color='blue')
-        plt.text(0.05, 0.85, 'skewness :' + str(skewness), transform=plt.gca().transAxes,
-                 fontsize=12, color='blue')
-        plt.text(0.05, 0.80, 'excess_kurtosis' + str(excess_kurtosis), transform=plt.gca().transAxes,
-                 fontsize=12, color='blue')
+        """
+        # 生成直方图
+        # plt.hist(returns, bins=100, density=True, alpha=0.75, label=label)
+
+        if mean < 1:
+            plt.gca().xaxis.set_major_formatter(FuncFormatter(SaveFrontier.to_percent_format))
+        # plt.gca().yaxis.set_major_formatter(FuncFormatter(SaveFrontier.to_percent_format))
 
         plt.title('Monte Carlo Simulation Results with PDF')
         plt.xlabel(label)
@@ -498,16 +510,20 @@ class SaveMonteCarlo:
         plt.savefig(path)
 
     @staticmethod
-    def save_data_to_local(returns: np.ndarray, amounts: np.ndarray):
+    def save_data_to_local(returns: np.ndarray, amounts: np.ndarray, terms: int):
 
         # 计算收益率的均值、波动率、偏度与超值峰度
         return_mean, return_volatility, return_skewness, return_excess_kurtosis = SaveMonteCarlo.get_stats(returns)
+
+        annul_return = np.power(return_mean + 1, 1 / terms) - 1
+
+        annul_volatility = return_volatility / np.sqrt(terms)
 
         # 计算期末金额的均值、波动率、偏度与超值峰度
         amount_mean, amount_volatility, amount_skewness, amount_excess_kurtosis = SaveMonteCarlo.get_stats(amounts)
 
         # 保存用来存储的数据
-        simulated_data = [[return_mean, return_volatility, return_skewness, return_excess_kurtosis],
+        simulated_data = [[annul_return, annul_volatility, return_skewness, return_excess_kurtosis],
                           [amount_mean, amount_volatility, amount_skewness, amount_excess_kurtosis]]
 
         # 数据的行名称

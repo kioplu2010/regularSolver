@@ -68,6 +68,17 @@ class Benchmark:
             annul_volatility = timeseries.std() * np.sqrt(float(config.AnnualizedMultiplier.MONTHS.value))
             skewness = stats.skew(timeseries.astype(float))
             excess_kurtosis = stats.kurtosis(timeseries.astype(float))
+
+            """
+            if skewness != 0:
+                ssss = stats.norm.fit(timeseries.astype(float))
+                ex_return = (1 + ex_m_return) ** config.AnnualizedMultiplier.MONTHS.value - 1
+                ex_m_return, ex_m_std
+            else:
+                ex_return = annul_return
+            """
+
+            # print("annul_return: %s ex_return: %s" %s (annul_return, ex_return))
         elif type == config.TimeSeriesType.PRICE:
             # 如果时间序列为价格，则需要先处理为价格涨跌幅数据
             annul_return = (1 + timeseries.pct_change().mean()) ** float(config.AnnualizedMultiplier.MONTHS.value) - 1

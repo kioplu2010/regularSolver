@@ -168,9 +168,9 @@ if __name__ == '__main__':
                              config.MonteCarloSetting.MONTE_CARLO_CONUTS)
 
     # 获取收益率序列与投资金额序列
-    returns, amounts = monte_carlo.get_simulations_returns()
+    accumulated_returns, accumulated_amounts = monte_carlo.get_simulations_returns()
 
     # 保存蒙特卡洛模拟结果
-    save.SaveMonteCarlo.save_data_to_local(returns, amounts)
+    save.SaveMonteCarlo.save_data_to_local(accumulated_returns, accumulated_amounts, config.MonteCarloSetting.TERMS)
 
     print("Well Done!")
