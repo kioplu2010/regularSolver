@@ -279,8 +279,8 @@ class SaveFrontier:
 
         # 按投资组合数据的顺序建好列名
         portfolio_data_names = asset_names + [config.ExcelFileSetting.LABEL_EXPECTED_RETURN,
-                                             config.ExcelFileSetting.LABEL_EXPECTED_VOLATILITY,
-                                             config.ExcelFileSetting.LABEL_SHARP_RATIO]
+                                              config.ExcelFileSetting.LABEL_EXPECTED_VOLATILITY,
+                                              config.ExcelFileSetting.LABEL_SHARP_RATIO]
 
         # 建立DataFrame存储存放投资组合数据
         df_efficient_frontier = pd.DataFrame(data=portfolio_data, index=portfolio_names, columns=portfolio_data_names)
@@ -379,10 +379,7 @@ class SaveFrontier:
         plt.scatter(x=random_volatilities, y=random_returns, c=random_sharpes, marker='o')
 
         # 标记波动率最小的点，颜色设定为绿色
-        plt.plot(series_vol.iloc[index_min_vol], series_return.iloc[index_min_vol], color='g', markersize=15.0)
-
-        # 标记夏普比率最大的点，颜色设定为黄色
-        plt.plot(series_vol.iloc[index_max_sharp], series_return.iloc[index_max_sharp], color='y', markersize=15.0)
+        plt.plot(series_vol.iloc[index_min_vol], series_return.iloc[index_min_vol], marker='*', color='g', markersize=15.0)
 
         # 获取最小的组合波动率
         min_vol = series_vol.min()
@@ -404,8 +401,9 @@ class SaveFrontier:
         plt.plot(curve_x, curve_y, color='xkcd:sky blue', linewidth=1.5,
                  label=config.ExcelFileSetting.LABEL_EFFICIENT_FRONTIER)
 
-        # 标记资本市场线与有效前沿的切点，其中tangent_paras[2]为切点的波动率（x轴坐标）
-        plt.plot(tangent_paras[2], sci.splev(tangent_paras[2], tck, der=0), color='r', markersize=15.0)
+        # 标记资本市场线与有效前沿的切点，其中tangent_paras[2]为切点的波动率（x轴坐标）,透明度设置为0.8
+        plt.plot(tangent_paras[2], sci.splev(tangent_paras[2], tck, der=0), marker='*', color='r', alpha=0.8,
+                 markersize=15.0)
 
         # 添加横坐标，颜色为黑色，样式为虚线，线宽为2.0
         plt.axhline(0, color='k', ls='--', lw=2.0)

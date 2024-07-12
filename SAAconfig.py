@@ -201,7 +201,7 @@ class AssetSetting:
     初始化大类资产的配置参数，主要是需要将资产名称和市场基准名称关联起来
     # TODO 后续存入配置文件或数据库
     """
-    # 先用4类资产做测试
+    # 资产名称
     ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity', 'HK_equity']
 
     # 存储资产名称与基准名称的对应关系
@@ -216,13 +216,13 @@ class PortfolioSetting:
     """
     PORTFOLIO_NAME = '4_assets_portfolio'
     # 建立4类资产的投资组合
-    ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity']
+    ASSETS_NAME = ['cash', 'gov_bond', 'credit_bond', 'China_equity', 'HK_equity']
 
     # 假设权益资产配置不超过30%
     # TODO 后续各类资产的权重限制条件可存入配置文件或数据库
 
     # 用于存储各类资产权重的上下限，未设置的默认为（0，1）
-    WEIGHTS_INTERVAL = {'China_equity': (0, 0.3)}
+    WEIGHTS_INTERVAL = {'China_equity': (0, 0.2), 'HK_equity': (0, 0.1)}
 
     # 将不等约束条件
     """
@@ -230,12 +230,13 @@ class PortfolioSetting:
         ineq_cons = {'type': 'ineq',
                  'fun' : lambda x: np.array([1 - x[0] - 2*x[1],
                                              1 - x[0]**2 - x[1],
-                                             1 - x[0]**2 + x[1]])
+                                             1 - x[0]**2 + x[1]])}
         eq_cons = {'type': 'eq',
                'fun' : lambda x: np.array([2*x[0] + x[1] - 1]),
                'jac' : lambda x: np.array([2.0, 1.0])}
     """
-    INEQ_CONS = [{'type': 'ineq', 'fun': lambda weights: 0.3 - weights[3]}]
+    INEQ_CONS = [{'type': 'ineq', 'fun': lambda weights: np.array([0.2 - weights[3],
+                                                                   0.1 - weights[4]])}]
 
 
 @dataclass
@@ -259,7 +260,7 @@ class PlotSetting:
     FIGURE_SIZE = (10, 6)
 
     # 散点图个数
-    SCATTER_COUNTS = 1000
+    SCATTER_COUNTS = 10000
 
     # 存放标签名称
     LABEL_CML = "capital_market_line"
@@ -283,7 +284,7 @@ class MonteCarloSetting:
     NET_CASH_FLOW = [744, 548, 423]
 
     # 选定的投资组合权重C
-    SELECTED_WEIGHTS = [0, 0.3569, 0.6369, 0.0061]
+    SELECTED_WEIGHTS = [0, 0.3129, 0.6729, 0, 0.0142]
 
     # 蒙特卡洛模拟数据标签
     LABEL_MONTECARLO = "MonteCarlo_simulations"
